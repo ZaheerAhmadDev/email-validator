@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Validator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen p-6">
+
+    <h1 class="text-3xl font-bold mb-6">📧 Email Validator</h1>
+
+    <!-- File Upload Section -->
+    <div class="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md text-center">
+        <label for="fileInput" class="cursor-pointer border-dashed border-2 border-gray-500 p-5 w-full flex flex-col items-center justify-center rounded-lg hover:bg-gray-700">
+            <span class="text-lg">Drag & Drop or Click to Upload CSV</span>
+            <input type="file" id="fileInput" accept=".csv, .txt" class="hidden" />
+        </label>
+        <button id="uploadBtn" class="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded">Upload File</button>
+        <p id="progress" class="mt-3 text-gray-400">Waiting for file upload...</p>
+    </div>
+
+    <!-- Results Table -->
+    <div id="resultContainer" class="hidden mt-8 w-full max-w-2xl">
+        <h2 class="text-2xl font-semibold mb-4">Validated Emails</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-gray-700 text-left">
+                <thead>
+                    <tr class="bg-gray-800">
+                        <th class="border border-gray-700 p-2">Email</th>
+                        <th class="border border-gray-700 p-2">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="emailTable" class="bg-gray-700"></tbody>
+            </table>
+        </div>
+        <button id="downloadBtn" class="mt-4 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded">Download CSV</button>
+    </div>
+
+    <script>
+        document.getElementById("fileInput").addEventListener("change", handleFileSelect);
+        document.getElementById("uploadBtn").addEventListener("click", uploadFile);
+        document.getElementById("downloadBtn").addEventListener("click", downloadResults);
+
+        let validatedEmails = [];
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                document.getElementById("progress").innerText = `Selected file: ${file.name}`;
+            }
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById("fileInput");
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert("Please select a file first.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            document.getElementById("progress").innerText = "Uploading...";
+
+            try {
+                const response = await fetch("http://localhost:5000/upload", {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error);
+                }
+
+                const result = await response.json();
+                validatedEmails = result.results;
+                displayEmails(validatedEmails);
+
+                document.getElementById("progress").innerText = "Upload Complete!";
+            } catch (error) {
+                console.error("Error:", error);
+                document.getElementById("progress").innerText = "Error: " + error.message;
+            }
+        }
+
+        function displayEmails(emailData) {
+            const tableBody = document.getElementById("emailTable");
+            tableBody.innerHTML = "";
+            document.getElementById("resultContainer").classList.remove("hidden");
+
+            emailData.forEach(({ email, valid }) => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td class="border border-gray-700 p-2">${email}</td>
+                    <td class="border border-gray-700 p-2">
+                        ${valid === "Valid" ? '<span class="text-green-400">✅ Valid</span>' : '<span class="text-red-400">❌ Invalid</span>'}
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function downloadResults() {
+            let csvContent = "data:text/csv;charset=utf-8,Email,Status\n";
+            validatedEmails.forEach(({ email, valid }) => {
+                csvContent += `${email},${valid}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "validated_emails.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+
+</body>
+</html>
